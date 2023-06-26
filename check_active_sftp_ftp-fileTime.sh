@@ -6,7 +6,10 @@
 #
 # author: Alexeiev F Araujo
 # alexeievfa@gmail.com      
-               
+#
+# Example:
+# check_active_sftp_ftp-fileTime.sh -H 192.168.1.201 -u userservidor -d "~/data/" -D "ssh_files" -f .csv -t sftp -w 60
+#
 
 #DEBUG=1 True
 #DEBUG=0 False
@@ -58,9 +61,9 @@ T_DEPENDENCE lftp
 #2 - Username
 #3 - Password
 
-# 'userHost:User:Password'
+# 'userHost|User|Password'
 dbPass=(
-'USERXsftp.server.com:USERX:##PASSWORD##'
+'USERXsftp.server.com|USERX|##PASSWORD##'
 
 )
 
@@ -115,7 +118,7 @@ if [ -z $File ]
 then
     for (( i=1; i <= 3; i++ ))
     do
-        timeout 10 lftp -u $User,$Pass -e "ls ${Dir} |egrep -v "^d";bye" $Prot$Host > $ArqTemp
+        timeout 10 lftp -c "set sftp:auto-confirm yes; set sftp:connect-program \"ssh -a -x -o UserKnownHostsFile=/dev/null\"; open -u $User,$Pass $Prot$Host; ls ${Dir} |egrep -v "^d";bye" > $ArqTemp
     done
         if [ $? -ne 0 ]
         then
@@ -126,7 +129,7 @@ then
 else
     for (( i=1; i <= 3; i++ ))
     do
-        timeout 10 lftp -u $User,$Pass -e "ls $Dir | egrep -v "^d" | grep $File;bye" $Prot$Host > $ArqTemp
+        timeout 10 lftp -c "set sftp:auto-confirm yes; set sftp:connect-program \"ssh -a -x -o UserKnownHostsFile=/dev/null\"; open -u $User,$Pass $Prot$Host; ls ${Dir} |egrep -v "^d" | grep $File;bye" > $ArqTemp
     done
         if [ $? -ne 0 ]
         then
@@ -142,7 +145,7 @@ while read line ;
 do
     Hora=$(echo $line |awk '{print $8}')
     Dia=$(echo $line |awk '{print $7}')
-    H1=$(( (10#${Hora:0:2}-1) *3600))
+    H1=$(( 10#${Hora:0:2} *3600))
     if [ $(echo ${Hora} |grep ":" ) ]
     then
         M1=$(( 10#${Hora:3} *60 ))
@@ -179,10 +182,10 @@ done < <(cat $ArqTemp)
 
 if [ $NumFile -eq 0 ]
 then
-    echo "OK - Files not found"
+    echo "OK - Files not found|Files=$NumFile"
     Code=0
 else
-    echo "CRIT - ${#Vetor[@]} Files found : ${Vetor[@]}"
+    echo "CRIT - ${#Vetor[@]} Files found : ${Vetor[@]}|Files=$NumFile"
     Code=2
 fi
 

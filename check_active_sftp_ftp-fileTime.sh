@@ -8,12 +8,45 @@
 # alexeievfa@gmail.com      
 #
 # Example:
-# check_active_sftp_ftp-fileTime.sh -u userservidor -d "~/data/" -D "ssh_files" -f .csv -t sftp -w 60 -H 192.168.1.201 
+# check_active_sftp_ftp-fileTime.sh -u USERXsftp.server.com -d "/data/" -D "files" -f .csv -t sftp -w 60 -H 192.168.1.201 
 #
 
 #DEBUG=1 True
 #DEBUG=0 False
-DEBUG=1
+DEBUG=0
+
+while getopts "d:D:u:t:f:w:H:h" flag
+do
+    case "$flag" in
+        d) Dir=${OPTARG};;
+        D) Desc=${OPTARG};;
+        u) User=${OPTARG};;
+        f) File=${OPTARG};;
+        t) Prot=${OPTARG};;
+        w) Warn=${OPTARG};;
+        H) Host=${OPTARG};;
+        h) Help;;
+        :) echo "The option ${OPTARG} required arguments\n";Help ;;
+        \?) Help;;
+    esac
+done
+
+function Help() {
+    echo "Use: ${0##*/} <ARGs> 
+-h This Help
+-u <userIP>
+-d </directory/>
+-D <Service_Description>
+-f <file Extension>
+-t <ftp (21) | sftp (22)>
+-w <900> Time in sec.
+
+-H <site>
+
+Ex.: check_active_sftp_ftp-fileTime.sh -u < userservidor > -d < "/data/" > -D < "files" > -f < .csv > -t < sftp > -w < 60 > -H < 192.168.1.201 >
+"
+exit 1
+}
 
 # Add the following information separated by " | "
 #1 - userIpdaconexao
@@ -23,7 +56,7 @@ DEBUG=1
 # 'userHost|User|Password'
 dbPass=(
 'USERXsftp.server.com|USERX|##PASSWORD##'
-'user127|user|123'
+
 )
 
 ArqTemp=/tmp/TempFile_${Desc// /_}.txt
@@ -84,34 +117,6 @@ function Pass(){
     done
 }
 
-function Help() {
-    echo "Use: $(basename $0) [OPTIONS] <site>
--h | --help This Help
--d </directory/>
--D <Service_Description>
--u <userIP>
--f <file Extension>
--t <ftp (21) | sftp (22)>
--w <900> Time in sec.
--H <site>
-"
-exit
-}
-
-while getopts ':d:D:u:f:t:w:H:h' flag
-do
-    case "$flag" in
-        h) Help ;;
-        d) Dir=${OPTARG};;
-        D) Desc=${OPTARG};;
-        u) User=${OPTARG};;
-        f) File=${OPTARG};;
-        t) Command=${OPTARG};;
-        w) Warn=${OPTARG};;
-        H) Host=${OPTARG};;
-    esac
-done
-
 #Testing dependencies
 T_DEPENDENCE lftp
 
@@ -120,7 +125,13 @@ Pass $User
 
 [ $DEBUG -eq 1 ] && echo "[DEBUG] - User: $User - Pass: $Pass"
 
-if [ "$Command" = "ftp" ]
+if [ -z $User ] || [ -z $Dir ] || [ -z $Desc ] || [ -z $Host ]
+then
+    echo -e "missing arguments\n"
+    Help
+fi
+
+if [ "$Prot" = "ftp" ]
 then
   Prot="ftp://"
 else
@@ -131,33 +142,41 @@ if [ -z $Warn ]
 then
     Warn=900
     #Time in seconds
+    [ $DEBUG -eq 1 ] && echo "[DEBUG] - WARN: $Warn"
 fi
-[ $DEBUG -eq 1 ] && echo "[DEBUG] - WARN: $Warn"
 
 [ $DEBUG -eq 1 ] && echo "[DEBUG] - Starting FTP connection"
 if [ -z $File ]
 then
     for (( i=1; i <= 3; i++ ))
     do
-        timeout 10 lftp -c "set sftp:auto-confirm yes; set sftp:connect-program \"ssh -a -x -o UserKnownHostsFile=/dev/null\"; open -u $User,$Pass $Prot$Host; ls ${Dir} |egrep -v "^d";bye" > $ArqTemp
-    done
-        if [ $? -ne 0 ]
+        timeout 10 lftp -c "set sftp:auto-confirm yes; set sftp:connect-program \"ssh -a -x -o UserKnownHostsFile=/dev/null\"; open -u $User,$Pass $Prot$Host; ls ${Dir} |egrep -v "^d";bye" > $ArqTemp 2>/dev/null
+        Out=$?
+        if [ $Out -ne 0 -a $i -eq 3 ] 
         then
             [ $DEBUG -eq 1 ] && echo "[DEBUG] - Timeout"
-            echo "UNK - Time out"
+            echo "UNK - Timeout for server $Host"
             exit 3
+        elif [ $Out -eq 0 ]
+        then
+            break
         fi
+    done
 else
     for (( i=1; i <= 3; i++ ))
     do
-        timeout 10 lftp -c "set sftp:auto-confirm yes; set sftp:connect-program \"ssh -a -x -o UserKnownHostsFile=/dev/null\"; open -u $User,$Pass $Prot$Host; ls ${Dir} |egrep -v "^d" | grep $File;bye" > $ArqTemp
-    done
-        if [ $? -ne 0 ]
+        timeout 10 lftp -c "set sftp:auto-confirm yes; set sftp:connect-program \"ssh -a -x -o UserKnownHostsFile=/dev/null\"; open -u $User,$Pass $Prot$Host; ls ${Dir} |egrep -v "^d" | grep $File;bye" > $ArqTemp 2>/dev/null
+        Out=$?
+        if [ $Out -ne 0 -a $i -eq 3 ] 
         then
             [ $DEBUG -eq 1 ] && echo "[DEBUG] - Timeout"
-            echo "UNK - Time out"
+            echo "UNK - Timeout for server $Host"
             exit 3
+        elif [ $Out -eq 0 ]
+        then
+            break
         fi
+    done
 fi
 
 [ $DEBUG -eq 1 ] && echo "[DEBUG] - reading file - $(cat $ArqTemp)"
